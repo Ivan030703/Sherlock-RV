@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<!--
+=====================================================================================
+   RESERVA ISLA ÁMBAR — VERSIÓN PARA META QUEST (VR)
+=====================================================================================
+   Es el mismo juego que la versión de computadora, pero ahora estás DE PIE en la
+   sala de control. El sistema de archivos es una MAQUETA HOLOGRÁFICA sobre una mesa.
+
+   ¿QUÉ CAMBIÓ RESPECTO A LA VERSIÓN DE COMPUTADORA?
+     1. Tú no te mueves. En vez de volar con la cámara (eso marea en VR), la
+        maqueta se acerca y se agranda frente a ti, como hacer zoom en un mapa.
+     2. No hay paneles de HTML. En VR solo se ve lo 3D, así que la consola, el
+        visor, el reloj y los mensajes son PANTALLAS 3D dibujadas en un <canvas>.
+     3. El mouse se cambió por los láseres de los controles (laser-controls).
+     4. La clave se escribe con un TECLADO 3D al que le apuntas con el láser.
+     5. El reloj usa tick() de A-Frame. En VR el navegador pausa
+        requestAnimationFrame, así que el bucle tiene que ir dentro de A-Frame.
+     6. Extra: el control VIBRA al hacer clic y en momentos de tensión.
+
+   CÓMO JUGARLO
+     • En el Quest: súbelo a Vercel (necesita https), ábrelo en el navegador del
+       Quest y presiona "Entrar al visor". Apunta con el láser y aprieta el gatillo.
+     • En la computadora: presiona "Jugar en la computadora". Arrastra el mouse
+       para mirar y haz clic para elegir.
+
+   ÍNDICE (busca estos títulos con Ctrl+F)
+     ESTILOS             solo la portada de HTML
+     1) DATOS            ARBOL y TIPOS (igual que la versión de computadora)
+     2) COMPONENTES      rotulo, pantalla, boton3d, teclado, suelo-reticula,
+                         sistema-archivos, reloj-juego
+     3) LA ESCENA        sala, mesa, maqueta, pantallas y controles
+     4) EL JUEGO         estado, pantallas, sonidos, zoom de la maqueta, carpetas,
+                         clave, archivos, REGLAS, reloj, principio y fin, conexiones
+
+   SÍMBOLOS:   ✏️ = puedes cambiarlo sin miedo     💡 = explicación de una idea
+=====================================================================================
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sherlock Holmes: El expediente perdido VR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/aframe@1.8.0/dist/aframe-v1.8.0.min.js"></script>
+
+  <!-- ================================================================
+       ESTILOS: solo para la portada de HTML (lo que ves ANTES de entrar al visor).
+       Todo lo demás es 3D y se colorea desde el código.
+       ================================================================ -->
+  <style>
+    :root {
+      --fondo: #151C19; --panel: #26342B; --texto: #F0E3C9; --tenue: #C1B39B;
+      --ambar: #CDA85E; --borde-claro: #8A7859; --borde-oscuro: #101812;
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) { --fondo: #d6e0ec; --panel: #e8eef5; --texto: #14233a; --tenue: #4a5f7a; --ambar: #9a5d00; --borde-claro: #ffffff; --borde-oscuro: #7d8fa8; }
+    }
+    :root[data-theme="light"] { --fondo: #d6e0ec; --panel: #e8eef5; --texto: #14233a; --tenue: #4a5f7a; --ambar: #9a5d00; --borde-claro: #ffffff; --borde-oscuro: #7d8fa8; }
+    :root[data-theme="dark"] { --fondo: #151C19; --panel: #26342B; --texto: #F0E3C9; --tenue: #C1B39B; --ambar: #CDA85E; --borde-claro: #8A7859; --borde-oscuro: #101812; }
+    *, *::before, *::after { box-sizing: inherit; }
+    html { height: 100%; }
+    body { height: 100%; margin: 0; background: #151C19; font-family: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif; overflow: hidden; }
+
+    #portada {
+      position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+      background: var(--fondo); color: var(--texto); padding: 20px;
+      padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    }
+    #portada[hidden] { display: none; }
+    .tarjeta {
+      max-width: 47em; max-height: 92vh; overflow-y: auto; padding: 28px 30px; background: var(--panel);
+      border: 1px solid; border-color: var(--borde-claro) var(--borde-oscuro) var(--borde-oscuro) var(--borde-claro);
+    }
+    h1 { font-weight: 600; font-size: clamp(30px, 6vw, 46px); line-height: 1.05; margin: 0 0 6px; }
+    .sub { font-family: "IBM Plex Mono", Menlo, Consolas, monospace; color: var(--tenue); font-size: 14px; margin: 0 0 20px; }
+    p { font-size: 16px; line-height: 1.55; margin: 0 0 14px; }
+    .introduccion p { margin-bottom: 9px; line-height: 1.43; }
+    .instruccion { color: var(--ambar); font-weight: 600; }
+    .botones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    button {
+      font-family: inherit; font-size: 17px; font-weight: 600; padding: 10px 22px; cursor: pointer; color: var(--texto);
+      background: transparent; border: 1px solid var(--tenue); border-radius: 2px;
+    }
+    button.principal { background: var(--ambar); color: var(--fondo); border-color: var(--ambar); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button:focus-visible { outline: 2px solid var(--ambar); outline-offset: 2px; }
+    #aviso-vr { font-size: 14px; color: var(--tenue); margin: 12px 0 0; min-height: 1.2em; }
+  </style>
+
+  <script>
+  /* =====================================================================
+     1) DATOS: el sistema de archivos (igual que en la versión de computadora)
+     ✏️ Cada archivo lleva: nombre (máx. ~14 letras), tam (altura del bloque),
+        texto (lo que se lee al abrirlo) y/o accion (una regla de REGLAS).
+     ===================================================================== */
+  // Expedientes victorianos: archivos virtuales que representan documentos físicos.
+  const ARBOL = {
+    nombre: 'expediente-perdido', hijos: [
+      { nombre: 'escena_crimen', archivos: [
+        { nombre: 'ventana.txt', tam: 1.5, texto: 'INFORME DE LESTRADE\nVentana norte: siete marcas paralelas en el marco. Ningun otro acceso presenta estas huellas.' },
+        { nombre: 'origen.txt', tam: 0.9, texto: 'NOTA DE HOLMES\nTodo empezo junto a la ventana. El primer elemento de la secuencia esta donde comienza la investigacion.' },
+        { nombre: 'limpieza.txt', tam: 1.0, texto: 'PERSONAL DE LIMPIEZA\nHallamos barro bajo la ventana norte. La lluvia habia cesado horas antes. Alguien entro sin usar la puerta.' },
+        { nombre: 'inventario.txt', tam: 0.8, texto: 'INVENTARIO\nUn escritorio, dos lamparas de gas, un armario forzado. Los papeles importantes no estaban a la vista.' }
+      ]},
+      { nombre: 'campanario', archivos: [
+        { nombre: 'nota_reloj.txt', tam: 1.4, texto: 'NOTA ANONIMA\nLa segunda verdad no esta escrita. Solo aquellos que saben escuchar podran encontrarla.' },
+        { nombre: 'mecanismo.txt', tam: 0.8, texto: 'BITACORA DEL RELOJERO\nEl mecanismo funciona incluso durante un corte de luz. Las campanas siguen su propio ritmo.' },
+        { nombre: 'inspeccion.txt', tam: 1.1, texto: 'INSPECCION\nLas campanas se oyen desde la sala de archivos. Mantenga los oidos atentos: el edificio no esta en silencio.' }
+      ]},
+      { nombre: 'correspondencia', archivos: [
+        { nombre: 'carta_cifra.txt', tam: 1.5, texto: 'CARTA SIN FIRMA\nMENSAJE CIFRADO: GRV\nLas tres letras forman un numero escrito con palabras. Busque el apunte de criptografia y descifrelas para obtener la tercera cifra.' },
+        { nombre: 'metodo.txt', tam: 0.9, texto: 'APUNTE DE CRIPTOGRAFIA\nCada letra de la carta fue adelantada tres lugares. Para leer el mensaje, vuelva tres letras atras en el abecedario normal (sin Ñ). Ejemplo: F se convierte en C. Haga lo mismo con las tres letras de la carta.' },
+        { nombre: 'watson.txt', tam: 1.7, texto: 'WATSON, 13 DE OCTUBRE\nSegui a un hombre delgado, de rostro alargado y mirada penetrante. Enseña matematicas. Recibe visitantes a medianoche. No conozco aun su papel.' },
+        { nombre: 'carta_M.txt', tam: 1.3, texto: 'SIN REMITENTE\nSenor Holmes: he preparado cuatro pequenas pruebas. Me intriga comprobar si su razonamiento es tan preciso como dicen. Disfrute nuestra primera partida.' }
+      ]},
+      { nombre: 'testimonios', archivos: [
+        { nombre: 'testigo.txt', tam: 1.3, texto: 'DECLARACION\nVi al sospechoso salir exactamente una hora despues de la llegada del inspector. Estoy seguro.' },
+        { nombre: 'registro.txt', tam: 1.0, texto: 'REGISTRO DE SCOTLAND YARD\nEl inspector llego a las ocho de la noche. Registro firmado y confirmado.' },
+        { nombre: 'ultima.txt', tam: 0.8, texto: 'ANOTACION DE HOLMES\nPara el ultimo lugar de la combinacion, observe la hora de huida. Anote solo la hora; descarte los minutos.' },
+        { nombre: 'lestrade.txt', tam: 1.2, texto: 'INFORME DE LESTRADE\nHolmes dice que pasamos por alto lo evidente. Agradeceria que explicara que es antes de volver a repetirlo.' }
+      ]},
+      { nombre: 'objetos_personales', archivos: [
+        { nombre: 'agenda.txt', tam: 1.0, texto: 'HOLMES, 14 DE OCTUBRE\nRevisar correo. Visitar a Lestrade. Comprar tabaco. Reclamar a Watson por mi abrigo. Investigar quien vigila Baker Street.' },
+        { nombre: 'periodico.txt', tam: 1.5, texto: 'THE LONDON GAZETTE\nPreocupacion en Whitehall ante la desaparicion de un documento diplomatico. Scotland Yard mantiene discrecion.' },
+        { nombre: 'gastos.txt', tam: 0.7, texto: 'RECIBOS\nPapel, tinta, carbon, un reloj de bolsillo. En las cuentas aparece un pago sin destinatario identificado.' },
+        { nombre: 'apunte.txt', tam: 1.2, texto: 'CUADERNO DE HOLMES\nNo confunda una pista con una conclusion. El orden importa tanto como los hechos. Watson persigue una sospecha diferente a la mia.' }
+      ]},
+      { nombre: 'mecanismo', archivos: [
+        { nombre: 'bomba.exe', tam: 2.0, accion: 'bomba', texto: 'Cerradura mecanica de cuatro ruedas. Introduzca los cuatro digitos para detener el temporizador.' },
+        { nombre: 'instruccion.txt', tam: 1.0, texto: 'PLACA DE BRONCE\nCuatro ruedas. Cuatro cifras. Una sola secuencia correcta. Cada intento erroneo consume veinte segundos.' },
+        { nombre: 'advertencia.txt', tam: 0.8, texto: 'ADVERTENCIA\nEl temporizador no se detiene mientras examina documentos. Los numeros y su orden estan repartidos por todo el edificio.' }
+      ]}
+    ]
+  };
+  const TIPOS = {
+    exe: { color: '#CDA85E', nombre: 'mecanismo' },
+    txt: { color: '#B5A88D', nombre: 'documento' },
+    log: { color: '#7A977F', nombre: 'registro' },
+    bat: { color: '#9B775A', nombre: 'nota' },
+    jpg: { color: '#BFA58B', nombre: 'imagen' }
+  };
+  const extension = n => n.split('.').pop();
+
+  // Fuentes y colores que usan todas las pantallas 3D (canvas)
+  const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
+  const SANS = '"IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif';
+  const C = {
+    fondo: 'rgba(23, 32, 26, 0.96)', borde: '#8A7859', texto: '#F0E3C9', tenue: '#C1B39B',
+    ambar: '#CDA85E', rojo: '#CD665A', verde: '#88B297'
+  };
+
+
+  /* =====================================================================
+     2) COMPONENTES
+     ===================================================================== */
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "rotulo": una línea de texto 3D con acentos y ñ.
+     Dibuja el texto en un <canvas> y lo pega en un plano.
+     💡 Tiene update(): si cambias el texto con setAttribute('rotulo', 'texto', 'Hola'),
+        A-Frame llama a update() y el rótulo se vuelve a dibujar.
+     --------------------------------------------------------------------- */
+  AFRAME.registerComponent('rotulo', {
+    schema: {
+      texto: { default: '' },
+      color: { default: '#dbe8f6' },
+      alto:  { default: 0.3 },            // altura del texto en metros
+      fuente: { default: 'mono' }         // 'mono' o 'sans'
+    },
+    update() {
+      this.dibujar();
+      // Si la fuente todavía no llegaba de internet, la volvemos a dibujar cuando llegue
+      if (document.fonts) document.fonts.load(this.fuente()).then(() => this.dibujar()).catch(() => {});
+    },
+    fuente() { return '500 64px ' + (this.data.fuente === 'sans' ? SANS : MONO); },
+    dibujar() {
+      const d = this.data;
+      const lienzo = document.createElement('canvas');
+      const ctx = lienzo.getContext('2d');
+      ctx.font = this.fuente();
+      lienzo.width = Math.max(4, Math.ceil(ctx.measureText(d.texto).width) + 24);
+      lienzo.height = 96;
+      ctx.font = this.fuente();
+      ctx.fillStyle = d.color;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(d.texto, 12, 50);
+      const textura = new THREE.CanvasTexture(lienzo);
+      textura.colorSpace = THREE.SRGBColorSpace;
+      textura.anisotropy = 4;
+      const ancho = d.alto * lienzo.width / lienzo.height;
+      const viejo = this.el.getObject3D('mesh');
+      if (viejo) { viejo.geometry.dispose(); viejo.material.map.dispose(); viejo.material.dispose(); }
+      this.el.setObject3D('mesh', new THREE.Mesh(
+        new THREE.PlaneGeometry(ancho, d.alto),
+        new THREE.MeshBasicMaterial({ map: textura, transparent: true, depthWrite: false })
+      ));
+    },
+    remove() { this.el.removeObject3D('mesh'); }
+  });
+
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "pantalla": un monitor 3D en el que el juego puede dibujar.
+     Es un canvas grande pegado en un plano. El juego dibuja con
+       const p = el.components.pantalla;
+       p.limpiar();  ...dibujar con p.ctx...  p.listo();
+     💡 textura.needsUpdate = true le avisa a la tarjeta de video que el
+        dibujo cambió. Sin eso, la pantalla se quedaría con la imagen vieja.
+     --------------------------------------------------------------------- */
+  AFRAME.registerComponent('pantalla', {
+    schema: {
+      ancho: { default: 1 },            // metros
+      alto:  { default: 0.5 },          // metros
+      resolucion: { default: 800 },     // pixeles por metro (más = más nítido, más pesado)
+      conFondo: { default: true }
+    },
+    init() {
+      const d = this.data;
+      this.lienzo = document.createElement('canvas');
+      this.lienzo.width = Math.round(d.ancho * d.resolucion);
+      this.lienzo.height = Math.round(d.alto * d.resolucion);
+      this.ctx = this.lienzo.getContext('2d');
+      this.textura = new THREE.CanvasTexture(this.lienzo);
+      this.textura.colorSpace = THREE.SRGBColorSpace;
+      this.textura.anisotropy = 4;
+      this.el.setObject3D('mesh', new THREE.Mesh(
+        new THREE.PlaneGeometry(d.ancho, d.alto),
+        new THREE.MeshBasicMaterial({ map: this.textura, transparent: true })
+      ));
+      this.limpiar();
+      this.listo();
+    },
+    limpiar() {
+      const { ctx, lienzo } = this;
+      ctx.clearRect(0, 0, lienzo.width, lienzo.height);
+      if (!this.data.conFondo) return;
+      ctx.fillStyle = C.fondo;
+      ctx.fillRect(0, 0, lienzo.width, lienzo.height);
+      ctx.strokeStyle = C.borde;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, lienzo.width - 4, lienzo.height - 4);
+    },
+    listo() { this.textura.needsUpdate = true; }
+  });
+
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "boton3d": un botón al que le apuntas con el láser.
+     Es el hermano mayor de "boton-sala" de tu museo: se ilumina al apuntarle
+     y lanza "click" al apretar el gatillo. El juego decide qué hace el clic.
+     --------------------------------------------------------------------- */
+  AFRAME.registerComponent('boton3d', {
+    schema: {
+      texto: { default: 'Botón' },
+      ancho: { default: 0.4 },
+      alto:  { default: 0.12 },
+      color: { default: '#1c3354' },
+      colorTexto: { default: '#d6e6f5' }
+    },
+    init() {
+      const el = this.el, d = this.data;
+      el.classList.add('clicable');
+      el.setAttribute('geometry', { primitive: 'plane', width: d.ancho, height: d.alto });
+      el.setAttribute('material', { shader: 'flat', color: d.color });
+      const t = document.createElement('a-entity');
+      t.setAttribute('position', '0 0 0.003');
+      t.setAttribute('rotulo', { texto: d.texto, alto: d.alto * 0.5, color: d.colorTexto, fuente: 'sans' });
+      el.appendChild(t);
+      el.addEventListener('mouseenter', () => el.setAttribute('material', 'color', '#3a6aa8'));
+      el.addEventListener('mouseleave', () => el.setAttribute('material', 'color', d.color));
+    }
+  });
+
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "teclado": letras 3D para escribir la clave con el láser.
+     Cada tecla es un boton3d. Al tocarla, el teclado avisa con el evento
+     "tecla" y manda la letra (o BORRAR / ENTRAR / CANCELAR).
+     --------------------------------------------------------------------- */
+  AFRAME.registerComponent('teclado', {
+    init() {
+      const filas = ['ABCDEFG', 'HIJKLMN', 'ÑOPQRST', 'UVWXYZ'];
+      const sepX = 0.13, sepY = 0.12;
+      filas.forEach((fila, f) => {
+        [...fila].forEach((letra, i) => this.tecla(letra, letra, (i - 3) * sepX, -f * sepY, 0.11));
+      });
+      this.tecla('Borrar', 'BORRAR', 3 * sepX, -3 * sepY, 0.11, '#4a2a33');
+      this.tecla('Cancelar', 'CANCELAR', -0.22, -4 * sepY - 0.02, 0.36);
+      this.tecla('Entrar', 'ENTRAR', 0.22, -4 * sepY - 0.02, 0.36, '#6b4a10');
+    },
+    tecla(texto, valor, x, y, ancho, color) {
+      const b = document.createElement('a-entity');
+      b.setAttribute('boton3d', { texto, ancho, alto: 0.1, color: color || '#1c3354' });
+      b.setAttribute('position', `${x} ${y} 0`);
+      b.addEventListener('click', () => this.el.emit('tecla', { valor }));
+      this.el.appendChild(b);
+    }
+  });
+
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "suelo-reticula": el piso cuadriculado de la sala.
+     --------------------------------------------------------------------- */
+  // Teclado numérico compacto de la cerradura mecánica.
+  AFRAME.registerComponent('teclado-numerico', {
+    init() {
+      '123456789'.split('').forEach((valor, i) => this.crear(valor, (i % 3 - 1)*0.16, -Math.floor(i/3)*0.12));
+      this.crear('0', 0, -0.36);
+      this.crear('Borrar', -0.20, -0.49, 0.18, '#654A3B');
+      this.crear('Cerrar', 0.20, -0.49, 0.18, '#654A3B');
+      this.crear('Entrar', 0, -0.62, 0.25, '#776338');
+    },
+    crear(valor,x,y,ancho=0.135,color='#4E4937') {
+      const b=document.createElement('a-entity');
+      b.setAttribute('boton3d',{texto:valor,ancho,alto:0.095,color,colorTexto:'#F0E3C9'});
+      b.setAttribute('position',`${x} ${y} 0.01`);
+      b.addEventListener('click',()=>this.el.emit('digito',{valor}));
+      this.el.appendChild(b);
+    }
+  });
+
+  AFRAME.registerComponent('suelo-reticula', {
+    schema: { tamano: { default: 40 }, celda: { default: 1 }, color: { default: '#3C4D3E' } },
+    init() {
+      const lienzo = document.createElement('canvas');
+      lienzo.width = lienzo.height = 128;
+      const ctx = lienzo.getContext('2d');
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(0, 0, 128, 128);
+      const textura = new THREE.CanvasTexture(lienzo);
+      textura.wrapS = textura.wrapT = THREE.RepeatWrapping;
+      textura.repeat.set(this.data.tamano / this.data.celda, this.data.tamano / this.data.celda);
+      textura.anisotropy = 8;
+      this.material = new THREE.MeshBasicMaterial({ map: textura, color: this.data.color, transparent: true, opacity: 0.5, depthWrite: false });
+      const malla = new THREE.Mesh(new THREE.PlaneGeometry(this.data.tamano, this.data.tamano), this.material);
+      malla.rotation.x = -Math.PI / 2;
+      this.el.setObject3D('mesh', malla);
+    },
+    setColor(color) { this.material.color.set(color); }
+  });
+
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "sistema-archivos": convierte ARBOL en plataformas y bloques.
+     Igual que en la versión de computadora, con UNA diferencia importante:
+     cada carpeta vive dentro de su propio GRUPO (n.grupo). Así el juego puede
+     esconder carpetas completas que quedan fuera de la mesa al hacer zoom.
+     Las medidas están en "metros de maqueta"; luego todo se encoge con scale.
+     --------------------------------------------------------------------- */
+  const SEP = 1.8;        // distancia entre bloques
+  const HUECO = 1.6;      // espacio entre plataformas vecinas
+  const NIVEL = 10;       // distancia entre un nivel del árbol y el siguiente
+
+  AFRAME.registerComponent('sistema-archivos', {
+    init() {
+      this.nodos = [];
+      const fuente = document.fonts ? document.fonts.load('500 64px "IBM Plex Mono"') : Promise.resolve();
+      Promise.race([fuente, new Promise(r => setTimeout(r, 2500))])
+        .catch(() => {})
+        .then(() => {
+          this.medir(ARBOL);
+          this.colocar(ARBOL, 0, 0, null, '');
+          this.el.sceneEl.emit('sistema-listo', { raiz: ARBOL, nodos: this.nodos });
+        });
+    },
+
+    // 💡 Recursión: cada carpeta mide a sus hijas antes de medirse a sí misma
+    medir(n) {
+      const nArch = (n.archivos || []).length;
+      n.cols = Math.min(3, Math.max(1, nArch));
+      n.filas = Math.max(1, Math.ceil(nArch / 3));
+      n.w = nArch ? n.cols * SEP + 0.6 : 2.6;
+      n.d = nArch ? n.filas * SEP + 0.8 : 2.6;
+      const hijos = n.hijos || [];
+      hijos.forEach(h => this.medir(h));
+      const anchoHijos = hijos.reduce((s, h) => s + h.anchoSub, 0) + HUECO * Math.max(0, hijos.length - 1);
+      n.anchoSub = Math.max(n.w, anchoHijos);
+    },
+
+    colocar(n, x, nivel, padre, rutaPadre) {
+      n.x = x;
+      n.z = -nivel * NIVEL;
+      n.padre = padre;
+      n.ruta = rutaPadre + '/' + n.nombre;
+      n.clicables = [];
+      this.nodos.push(n);
+      const escena = this.el.sceneEl;
+
+      // El grupo de esta carpeta: TODO lo de la carpeta se mide desde aquí
+      const g = document.createElement('a-entity');
+      g.setAttribute('position', `${x} 0 ${n.z}`);
+      this.el.appendChild(g);
+      n.grupo = g;
+
+      const plat = this.crear(g, 'a-box', {
+        position: '0 0.15 0', width: n.w, height: 0.3, depth: n.d, color: '#5F4D3C', class: 'clicable'
+      });
+      n.el = plat;
+      n.clicables.push(plat);
+      plat.addEventListener('mouseenter', () => escena.emit('sobre', { nodo: n }));
+      plat.addEventListener('mouseleave', () => escena.emit('sobre', {}));
+      plat.addEventListener('click', () => escena.emit('elegir-carpeta', { nodo: n }));
+
+      // Nombre de la carpeta, inclinado para que se lea desde donde estás parado
+      this.crear(g, 'a-entity', {
+        position: `0 0.5 ${n.d / 2 + 0.7}`, rotation: '-35 0 0',
+        rotulo: { texto: n.nombre + '/', alto: 0.7, color: '#ffd98a' }
+      });
+
+      // Línea hacia la carpeta madre (medida desde el grupo de ESTA carpeta)
+      if (padre) {
+        const x1 = padre.x - x, z1 = (padre.z - padre.d / 2) - n.z;
+        const x2 = 0, z2 = n.d / 2 + 1.4;
+        const dx = x2 - x1, dz = z2 - z1, largo = Math.hypot(dx, dz);
+        this.crear(g, 'a-box', {
+          position: `${(x1 + x2) / 2} 0.02 ${(z1 + z2) / 2}`,
+          rotation: `0 ${Math.atan2(dx, dz) * 180 / Math.PI} 0`,
+          width: 0.12, height: 0.03, depth: largo,
+          material: 'shader: flat; color: #B7A37C'
+        });
+      }
+
+      // Archivos en cuadrícula de 3 columnas (i % 3 = columna, i / 3 = fila)
+      (n.archivos || []).forEach((a, i) => {
+        const col = i % 3, fila = Math.floor(i / 3);
+        const fx = -(n.cols - 1) * SEP / 2 + col * SEP;
+        const fz = -(n.filas - 1) * SEP / 2 + fila * SEP - 0.2;
+        const tipo = TIPOS[extension(a.nombre)] || TIPOS.txt;
+        a.dir = n;
+        a.tipo = tipo;
+        a.el = this.crear(g, 'a-box', {
+          position: `${fx} ${0.3 + a.tam / 2} ${fz}`, width: 0.8, height: a.tam, depth: 0.8,
+          color: tipo.color, class: 'clicable'
+        });
+        n.clicables.push(a.el);
+        a.el.addEventListener('mouseenter', () => { a.el.object3D.scale.set(1.12, 1.03, 1.12); escena.emit('sobre', { archivo: a }); });
+        a.el.addEventListener('mouseleave', () => { a.el.object3D.scale.set(1, 1, 1); escena.emit('sobre', {}); });
+        a.el.addEventListener('click', () => escena.emit('elegir-archivo', { archivo: a }));
+        this.crear(g, 'a-entity', {
+          position: `${fx} 0.5 ${fz + 0.65}`, rotation: '-35 0 0',
+          rotulo: { texto: a.nombre, alto: 0.3 }
+        });
+      });
+
+      const hijos = n.hijos || [];
+      const total = hijos.reduce((s, h) => s + h.anchoSub, 0) + HUECO * Math.max(0, hijos.length - 1);
+      let cursor = x - total / 2;
+      hijos.forEach(h => {
+        this.colocar(h, cursor + h.anchoSub / 2, nivel + 1, n, n.ruta);
+        cursor += h.anchoSub + HUECO;
+      });
+    },
+
+    crear(padre, etiqueta, atributos) {
+      const e = document.createElement(etiqueta);
+      for (const k in atributos) e.setAttribute(k, atributos[k]);
+      padre.appendChild(e);
+      return e;
+    }
+  });
+
+
+  /* ---------------------------------------------------------------------
+     COMPONENTE "reloj-juego": llama a window.alTick en cada cuadro.
+     💡 ¿Por qué? Dentro del visor, el navegador PAUSA requestAnimationFrame
+        (el que usaba la versión de computadora). El tick() de A-Frame sí sigue
+        corriendo en VR, así que el reloj del juego se cuelga de aquí.
+     --------------------------------------------------------------------- */
+  AFRAME.registerComponent('reloj-juego', {
+    tick() { if (window.alTick) window.alTick(); }
+  });
+  </script>
+</head>
+<body>
+
+<!-- ================================================================
+     PORTADA DE HTML (se ve en el navegador, antes de entrar al visor)
+     💡 Los navegadores exigen un clic de la persona para entrar a VR y para
+        encender el sonido. Por eso existe esta pantalla.
+     ================================================================ -->
+<div id="portada">
+  <div class="tarjeta">
+    <h1>Sherlock Holmes: El expediente perdido</h1>
+    <p class="sub">Londres, 1893 · Una investigación de Sherlock Holmes</p>
+    <div class="introduccion">
+      <p>Un documento diplomático de gran importancia desaparece de las oficinas del gobierno británico. Sherlock Holmes es contratado para investigar su desaparición.</p>
+      <p>Las evidencias lo conducen hasta un edificio aparentemente abandonado, donde descubre una colección de expedientes relacionados con el robo.</p>
+      <p>Sin embargo, al comenzar su investigación, las puertas se bloquean y se activa un dispositivo explosivo.</p>
+      <p>Una voz desconocida le anuncia que dispone de unos minutos para desactivar la bomba. La combinación está oculta entre los documentos que tiene frente a él.</p>
+      <p>Holmes deberá resolver cuatro acertijos para descubrir los números y su orden correcto.</p>
+      <p>Mientras tanto, el doctor Watson, que había seguido una pista diferente, está investigando los movimientos de un misterioso profesor de matemáticas.</p>
+    </div>
+    <p class="instruccion">Tienes seis minutos. Explora los expedientes con el ratón o los controles del visor.</p>
+    <div class="botones">
+      <button id="btn-vr" class="principal">Investigar en VR</button>
+      <button id="btn-pantalla">Investigar en computadora</button>
+    </div>
+    <p id="aviso-vr" role="status"></p>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     3) LA ESCENA
+       cursor + raycaster en la escena: el mouse de la computadora
+       reloj-juego: el bucle del reloj (ver el componente)
+     ================================================================ -->
+<a-scene cursor="rayOrigin: mouse" raycaster="objects: .clicable"
+         background="color: #151C19" fog="type: exponential; color: #151C19; density: 0.045"
+         reloj-juego loading-screen="dotsColor: #CDA85E; backgroundColor: #151C19">
+
+  <!-- EL JUGADOR
+       En la computadora el rig está un poco atrás y arriba para ver la mesa completa.
+       Al entrar al visor lo regresamos a 0 0 0: la altura la pone tu cabeza de verdad. -->
+  <a-entity id="rig" position="0 0.25 0.6">
+    <a-entity id="camara" camera position="0 1.6 0" look-controls="pointerLockEnabled: false"></a-entity>
+    <!-- Manos: laser-controls dibuja el láser y reconoce el gatillo del Quest.
+         El raycaster solo toca objetos con la clase "clicable", hasta 6 m. -->
+    <a-entity id="mano-izq" laser-controls="hand: left"  raycaster="objects: .clicable; far: 6; lineColor: #CDA85E; lineOpacity: 0.7"></a-entity>
+    <a-entity id="mano-der" laser-controls="hand: right" raycaster="objects: .clicable; far: 6; lineColor: #CDA85E; lineOpacity: 0.7"></a-entity>
+  </a-entity>
+
+  <!-- Marca en el piso: aquí te paras -->
+  <a-ring position="0 0.01 0" rotation="-90 0 0" radius-inner="0.32" radius-outer="0.36" material="shader: flat; color: #CDA85E; opacity: 0.6"></a-ring>
+
+  <!-- LUCES (el juego las cambia al restaurar la energía) -->
+  <a-entity id="luz-amb" light="type: ambient; color: #7A694F; intensity: 0.7"></a-entity>
+  <a-entity id="luz-dir" light="type: directional; color: #ffffff; intensity: 0.3" position="-2 4 2"></a-entity>
+  <a-entity id="luz-emerg" light="type: point; color: #A45F38; intensity: 6; distance: 14; decay: 1" position="0 3 -1.5"
+            animation="property: light.intensity; from: 2; to: 9; dir: alternate; loop: true; dur: 900; easing: easeInOutSine"></a-entity>
+
+  <a-entity id="suelo" suelo-reticula></a-entity>
+
+  <!-- LA MESA DEL PROYECTOR (✏️ puedes cambiar colores o tamaño; si cambias
+       el tamaño, ajusta también ANCHO_MESA y FONDO_MESA en el juego) -->
+  <a-box position="0 0.46 -1.15" width="2.3" height="0.92" depth="1.7" color="#1a2438"></a-box>
+  <a-plane position="0 0.925 -1.15" rotation="-90 0 0" width="2.2" height="1.6"
+           material="shader: flat; color: #CDA85E; opacity: 0.28; transparent: true"></a-plane>
+
+  <!-- LA MAQUETA: "maqueta" está en el centro de la mesa y se encoge con scale.
+       "contenido" se desliza para que la carpeta elegida quede en el centro.
+       💡 Mover y escalar la maqueta en vez de mover al jugador = cero mareo. -->
+  <a-entity id="maqueta" position="0 0.93 -1.15" scale="0.03 0.03 0.03">
+    <a-entity id="contenido" sistema-archivos></a-entity>
+  </a-entity>
+
+  <!-- PANTALLAS 3D (el juego dibuja en ellas) -->
+  <a-entity id="pan-estado"  pantalla="ancho: 1.8; alto: 0.3; resolucion: 700" position="0 2.05 -1.8" rotation="12 0 0"></a-entity>
+  <a-entity id="pan-info"    pantalla="ancho: 1.6; alto: 0.1; resolucion: 700; conFondo: false" position="0 1.82 -1.78" rotation="12 0 0"></a-entity>
+  <a-entity id="pan-consola" pantalla="ancho: 1.1; alto: 0.78; resolucion: 900" position="-1.4 1.45 -0.8" rotation="0 45 0"></a-entity>
+
+  <a-entity id="visor" position="1.4 1.45 -0.8" rotation="0 -45 0" visible="false">
+    <a-entity id="pan-visor" pantalla="ancho: 1.1; alto: 0.78; resolucion: 800"></a-entity>
+    <a-entity id="btn-cerrar-visor" boton3d="texto: Cerrar; ancho: 0.3; alto: 0.1" position="0.38 -0.47 0"></a-entity>
+  </a-entity>
+
+  <!-- Botones de navegación en la orilla de la mesa -->
+  <a-entity id="btn-subir"   boton3d="texto: Subir un nivel; ancho: 0.46; alto: 0.12" position="-0.3 1.0 -0.32" rotation="-45 0 0"></a-entity>
+  <a-entity id="btn-general" boton3d="texto: Vista general; ancho: 0.46; alto: 0.12"  position="0.3 1.0 -0.32" rotation="-45 0 0"></a-entity>
+
+  <!-- Ventana de mensajes (inicio y final) con su botón -->
+  <a-entity id="mensaje" position="0 1.5 -0.95">
+    <a-entity id="pan-mensaje" pantalla="ancho: 1.4; alto: 0.78; resolucion: 700"></a-entity>
+    <a-entity id="btn-mensaje" boton3d="texto: Iniciar sistema; ancho: 0.5; alto: 0.13; color: #6b4a10" position="0 -0.3 0.01"></a-entity>
+  </a-entity>
+
+  <!-- Teclado para la clave (escondido hasta que se necesita) -->
+  <a-entity id="zona-clave" position="0 1.38 -0.55" rotation="-30 0 0" visible="false">
+    <a-entity id="pan-clave" pantalla="ancho: 1.0; alto: 0.24; resolucion: 700" position="0 0.2 0"></a-entity>
+    <a-entity id="teclado" teclado></a-entity>
+  </a-entity>
+  <!-- Cerradura mecánica de cuatro dígitos -->
+  <a-entity id="zona-bomba" position="0 1.47 -0.47" rotation="-12 0 0" visible="false">
+    <a-entity id="pan-bomba" pantalla="ancho: 1.03; alto: 0.25; resolucion: 750" position="0 0.20 0"></a-entity>
+    <a-entity id="numerico" teclado-numerico position="0 -0.015 0.025" scale="0.82 0.82 0.82"></a-entity>
+  </a-entity>
+</a-scene>
+
+
+<script>
+/* =====================================================================
+   4) EL JUEGO
+   Las reglas son las mismas que en la versión de computadora. Lo nuevo es
+   que todo lo que se "ve" se dibuja en pantallas 3D en lugar de HTML.
+   ===================================================================== */
+
+/* ---------- Atajos ---------- */
+const escena = document.querySelector('a-scene');
+const $ = id => document.getElementById(id);
+const pantalla = id => $(id).components.pantalla;   // atajo para dibujar en una pantalla
+
+const DURACION = 360;           // ✏️ segundos para ganar
+const ANCHO_MESA = 2.0;         // metros de mesa que puede ocupar la maqueta
+const FONDO_MESA = 1.4;
+const ZOOM_MAXIMO = 0.22;       // ✏️ qué tan grande puede verse una carpeta de cerca
+
+/* ---------- Estado del juego (escribe J en la consola F12 para verlo) ---------- */
+const J = {
+  activo: false, fin: false, inicio: 0, restante: DURACION,
+  energia: false, arrancando: false, codigo: '', intentos: 0, campanadas: 0,
+  desbloqueadas: new Set(),
+  dirActual: null,
+  avisosDados: new Set(),
+  pendiente: null,             // carpeta que espera clave + qué hacer después
+  claveEscrita: '', claveError: '',
+  accionMensaje: null,         // qué hace el botón de la ventana de mensajes
+  ultimoSeg: -1, ultimoM: -1
+};
+let RAIZ = null, NODOS = [];
+let lineasConsola = [];        // la consola guarda aquí sus líneas: { t: texto, c: color }
+
+
+/* ---------- Mostrar y esconder cosas en VR ----------
+   💡 Esconder algo (visible = false) NO impide que el láser lo toque.
+      Por eso, además de esconderlo, le quitamos la clase "clicable"
+      a todos sus botones, y se la regresamos al mostrarlo. */
+function ver(el, si) {
+  el.object3D.visible = si;
+  el.querySelectorAll('[boton3d]').forEach(b => b.classList.toggle('clicable', si));
+  if (el.hasAttribute('boton3d')) el.classList.toggle('clicable', si);
+}
+
+
+/* ---------- Ayudantes para dibujar texto en los canvas ----------
+   envolver() parte un texto largo en renglones que quepan en "anchoMax" pixeles,
+   midiendo palabra por palabra con measureText. */
+function envolver(ctx, texto, anchoMax) {
+  const renglones = [];
+  texto.split('\n').forEach(parrafo => {
+    if (!parrafo) { renglones.push(''); return; }
+    let linea = '';
+    parrafo.split(' ').forEach(palabra => {
+      const prueba = linea ? linea + ' ' + palabra : palabra;
+      if (ctx.measureText(prueba).width > anchoMax && linea) { renglones.push(linea); linea = palabra; }
+      else linea = prueba;
+    });
+    renglones.push(linea);
+  });
+  return renglones;
+}
+
+
+/* ---------- Pantalla: consola ---------- */
+const COLOR_CLASE = { cmd: C.verde, error: C.rojo, aviso: C.ambar, tenue: C.tenue };
+function escribir(texto, clase) {
+  lineasConsola.push({ t: texto, c: COLOR_CLASE[clase] || C.texto });
+  if (lineasConsola.length > 40) lineasConsola.shift();
+  dibujarConsola();
+}
+function dibujarConsola() {
+  const p = pantalla('pan-consola'); if (!p) return;
+  const ctx = p.ctx, W = p.lienzo.width, H = p.lienzo.height;
+  p.limpiar();
+  ctx.font = '400 28px ' + MONO;
+  ctx.textBaseline = 'top';
+  // Convertimos cada línea en renglones y nos quedamos con los últimos que caben
+  const renglones = [];
+  lineasConsola.forEach(l => envolver(ctx, l.t, W - 48).forEach(r => renglones.push({ t: r, c: l.c })));
+  const alto = 38, caben = Math.floor((H - 40) / alto);
+  renglones.slice(-caben).forEach((r, i) => { ctx.fillStyle = r.c; ctx.fillText(r.t, 24, 20 + i * alto); });
+  p.listo();
+}
+
+ /* ---------- Panel de estado: reloj y cerradura mecánica ---------- */
+ function dibujarEstado() {
+   const p = pantalla('pan-estado'); if (!p) return;
+   const ctx = p.ctx, W = p.lienzo.width;
+   p.limpiar();
+   const seg = Math.ceil(J.restante);
+   ctx.textBaseline = 'middle';
+   ctx.font = '500 32px ' + MONO;
+   ctx.fillStyle = C.ambar;
+   ctx.fillText('HOLMES / EXPEDIENTE PERDIDO', 25, 53);
+   ctx.font = '500 32px ' + SANS;
+   ctx.fillStyle = C.texto;
+   ctx.fillText('BOMBA ACTIVA  |  CUATRO DIGITOS', 25, 145);
+   ctx.textAlign = 'right';
+   ctx.fillStyle = seg <= 60 ? C.rojo : C.ambar;
+   ctx.font = '500 58px ' + MONO;
+   ctx.fillText(Math.floor(seg / 60) + ':' + String(seg % 60).padStart(2, '0'), W - 28, 139);
+   ctx.textAlign = 'left'; p.listo();
+ }
+
+/* ---------- Pantalla: info (al apuntarle a algo) ---------- */
+function dibujarInfo(texto) {
+  const p = pantalla('pan-info'); if (!p) return;
+  const ctx = p.ctx, W = p.lienzo.width, H = p.lienzo.height;
+  p.limpiar();
+  if (texto) {
+    ctx.font = '500 34px ' + MONO;
+    const w = ctx.measureText(texto).width + 40;
+    ctx.fillStyle = C.fondo;
+    ctx.fillRect((W - w) / 2, 4, w, H - 8);
+    ctx.fillStyle = C.texto;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(texto, W / 2, H / 2 + 2);
+    ctx.textAlign = 'left';
+  }
+  p.listo();
+}
+
+/* ---------- Pantalla: visor de archivos ---------- */
+function mostrar(titulo, texto) {
+  const p = pantalla('pan-visor');
+  const ctx = p.ctx, W = p.lienzo.width;
+  p.limpiar();
+  ctx.textBaseline = 'top';
+  ctx.font = '500 34px ' + MONO;
+  ctx.fillStyle = C.ambar;
+  ctx.fillText(titulo, 28, 24);
+  ctx.fillStyle = C.borde;
+  ctx.fillRect(0, 76, W, 3);
+  ctx.font = '400 30px ' + MONO;
+  ctx.fillStyle = C.texto;
+  envolver(ctx, texto, W - 56).slice(0, 13).forEach((r, i) => ctx.fillText(r, 28, 100 + i * 42));
+  p.listo();
+  ver($('visor'), true);
+}
+
+/* ---------- Pantalla: mensajes grandes (inicio y final) ---------- */
+function mostrarMensaje(titulo, texto, textoBoton, accion) {
+  const p = pantalla('pan-mensaje');
+  const ctx = p.ctx, W = p.lienzo.width;
+  p.limpiar();
+  ctx.textBaseline = 'top';
+  ctx.font = '600 64px ' + SANS;
+  ctx.fillStyle = C.texto;
+  ctx.fillText(titulo, 40, 36);
+  ctx.font = '400 32px ' + SANS;
+  envolver(ctx, texto, W - 80).slice(0, 10).forEach((r, i) => ctx.fillText(r, 40, 126 + i * 44));
+  p.listo();
+  $('btn-mensaje').querySelector('[rotulo]').setAttribute('rotulo', 'texto', textoBoton);
+  J.accionMensaje = accion;
+  ver($('mensaje'), true);
+  mostrarMaqueta(false);
+}
+
+
+/* ---------- Sonidos sintetizados (igual que en la versión de computadora) ---------- */
+let audio = null;
+function ctxAudio() {
+  if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (audio.state !== 'running') audio.resume();
+  return audio;
+}
+function tono(frec, dur, tipo = 'square', vol = 0.05, retraso = 0) {
+  const a = ctxAudio(); if (!a) return;
+  const t = a.currentTime + retraso;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = tipo; o.frequency.setValueAtTime(frec, t);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+function ruido(dur, frecFiltro, tipoFiltro, vol, retraso = 0) {
+  const a = ctxAudio(); if (!a) return;
+  const t = a.currentTime + retraso;
+  const buf = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate);
+  const datos = buf.getChannelData(0);
+  for (let i = 0; i < datos.length; i++) datos[i] = Math.random() * 2 - 1;
+  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = buf; f.type = tipoFiltro; f.frequency.value = frecFiltro;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.2); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f).connect(g).connect(a.destination); src.start(t); src.stop(t + dur + 0.05);
+}
+const sonido = {
+  clic:    () => tono(880, 0.06, 'square', 0.03),
+  error:   () => { tono(140, 0.25, 'sawtooth', 0.06); tono(110, 0.3, 'sawtooth', 0.06, 0.12); },
+  exito:   () => [523, 659, 784, 1046].forEach((f, i) => tono(f, 0.2, 'triangle', 0.07, i * 0.1)),
+  arranque:() => [220, 277, 330, 440, 554, 660].forEach((f, i) => tono(f, 0.35, 'sawtooth', 0.04, i * 0.4)),
+  gruñido: () => { ruido(1.3, 260, 'lowpass', 0.5); tono(62, 1.1, 'sawtooth', 0.05); },
+  golpe:   () => { tono(55, 0.25, 'sine', 0.5); tono(50, 0.25, 'sine', 0.5, 0.35); },
+  rasguño: () => { for (let i = 0; i < 6; i++) ruido(0.07, 2800, 'highpass', 0.25, i * 0.11); }
+};
+
+/* ---------- Vibración de los controles ----------
+   💡 tracked-controls (lo agrega laser-controls) guarda el control real del Quest.
+      Su "gamepad" tiene un motor de vibración: pulse(fuerza de 0 a 1, milisegundos).
+      Va dentro de try/catch porque en la computadora no hay controles. */
+function vibrar(fuerza = 0.3, ms = 40) {
+  ['mano-izq', 'mano-der'].forEach(id => {
+    try {
+      const tc = $(id).components['tracked-controls'];
+      const gp = tc && tc.controller && tc.controller.gamepad;
+      const motor = gp && gp.hapticActuators && gp.hapticActuators[0];
+      if (motor) motor.pulse(fuerza, ms);
+    } catch (e) {}
+  });
+}
+
+
+/* ---------- Zoom de la maqueta (lo que reemplaza al "vuelo" de la cámara) ----------
+   Queremos que el punto (fx, fz) de la maqueta quede en el centro de la mesa,
+   con un tamaño que quepa en ANCHO_MESA x FONDO_MESA.
+   💡 La cuenta: si la carpeta mide 7 m de ancho y la mesa 2 m, la escala es 2 / 7.
+      Luego movemos "contenido" al revés (-fx, -fz) para centrar ese punto.
+   Después escondemos las carpetas que quedarían fuera de la mesa, para que no
+   te atraviesen el cuerpo ni estorben al láser. */
+function enfocar(fx, fz, anchoV, fondoV, inmediato) {
+  J.enfoque = [fx, fz, anchoV, fondoV];   // lo recordamos para mostrarMaqueta()
+  const s = Math.min(ANCHO_MESA / anchoV, FONDO_MESA / fondoV, ZOOM_MAXIMO);
+  const maqueta = $('maqueta'), contenido = $('contenido');
+  const escala = `${s} ${s} ${s}`, pos = `${-fx} 0 ${-fz}`;
+  if (inmediato) {
+    maqueta.setAttribute('scale', escala);
+    contenido.setAttribute('position', pos);
+  } else {
+    maqueta.setAttribute('animation__zoom', { property: 'scale', to: escala, dur: 900, easing: 'easeInOutCubic' });
+    contenido.setAttribute('animation__mover', { property: 'position', to: pos, dur: 900, easing: 'easeInOutCubic' });
+  }
+  // ¿Qué carpetas caben sobre la mesa con este zoom?
+  NODOS.forEach(n => {
+    const dx = (n.x - fx) * s, dz = (n.z - fz) * s;
+    const medioAncho = (n.w / 2) * s, medioFondo = (n.d / 2 + 1.4) * s;
+    const cabe = Math.abs(dx) - medioAncho < ANCHO_MESA / 2 + 0.25 &&
+                 dz - medioFondo < FONDO_MESA / 2 + 0.1 &&
+                 dz + medioFondo > -FONDO_MESA / 2 - 0.4;
+    n.grupo.object3D.visible = cabe;
+    n.clicables.forEach(c => c.classList.toggle('clicable', cabe));
+  });
+}
+// Esconde la maqueta mientras hay un mensaje grande, para que sus bloques no
+// tapen el botón (y el láser no los toque por accidente)
+function mostrarMaqueta(si) {
+  $('maqueta').object3D.visible = si;
+  if (si && J.enfoque) enfocar(...J.enfoque, true);
+  if (!si) NODOS.forEach(n => n.clicables.forEach(c => c.classList.remove('clicable')));
+}
+function vistaGeneral(inmediato) {
+  J.dirActual = null;
+  dibujarEstado();
+  enfocar(0, -NIVEL, RAIZ.anchoSub + 1, 2 * NIVEL + 6, inmediato);
+}
+
+
+/* ---------- Navegar carpetas (igual que antes, pero con enfocar en vez de volar) ---------- */
+const bloqueada = n => n.clave && !J.desbloqueadas.has(n);
+
+function entrarCarpeta(n, silencioso) {
+  if (J.dirActual !== n || !silencioso) {
+    J.dirActual = n;
+    dibujarEstado();
+    if (n.archivos) enfocar(n.x, n.z, n.w + 1, n.d + 3);
+    else enfocar(n.x, n.z - NIVEL / 2, n.anchoSub + 1, NIVEL + 6);
+    escribir('$ cd ' + n.ruta, 'cmd');
+  }
+  if (bloqueada(n)) {
+    escribir('cd: permiso denegado. Se requiere clave.', 'error');
+    sonido.error();
+    vibrar(0.6, 120);
+    pedirClave(n, () => listar(n));
+    return false;
+  }
+  if (!silencioso) listar(n);
+  return true;
+}
+function listar(n) {
+  const nombres = [...(n.hijos || []).map(h => h.nombre + '/'), ...(n.archivos || []).map(a => a.nombre)];
+  escribir(nombres.join('   '), 'tenue');
+}
+function subir() {
+  if (!J.dirActual) return;
+  if (J.dirActual.padre) entrarCarpeta(J.dirActual.padre);
+  else { vistaGeneral(); escribir('$ cd /' + ARBOL.nombre, 'cmd'); listar(RAIZ); }
+}
+
+
+/* ---------- Clave con el teclado 3D ----------
+   💡 Callback: "despues" se guarda y solo se ejecuta si la clave es correcta. */
+function pedirClave(n, despues) {
+  J.pendiente = { nodo: n, despues };
+  J.claveEscrita = '';
+  J.claveError = '';
+  dibujarClave();
+  ver($('zona-clave'), true);
+}
+function dibujarClave() {
+  const p = pantalla('pan-clave');
+  const ctx = p.ctx, W = p.lienzo.width;
+  p.limpiar();
+  ctx.textBaseline = 'middle';
+  ctx.font = '500 28px ' + SANS;
+  ctx.fillStyle = C.tenue;
+  ctx.fillText('Clave para ' + (J.pendiente ? J.pendiente.nodo.ruta : ''), 24, 34);
+  ctx.font = '500 48px ' + MONO;
+  ctx.fillStyle = C.texto;
+  ctx.fillText((J.claveEscrita || '') + '_', 24, 92);
+  if (J.claveError) {
+    ctx.font = '500 26px ' + SANS;
+    ctx.fillStyle = C.rojo;
+    ctx.textAlign = 'right';
+    ctx.fillText(J.claveError, W - 24, 140);
+    ctx.textAlign = 'left';
+  }
+  p.listo();
+}
+function tecla(valor) {
+  if (!J.pendiente) return;
+  sonido.clic();
+  vibrar(0.2, 25);
+  if (valor === 'CANCELAR') { cerrarClave(); return; }
+  if (valor === 'BORRAR') J.claveEscrita = J.claveEscrita.slice(0, -1);
+  else if (valor === 'ENTRAR') { revisarClave(); return; }
+  else if (J.claveEscrita.length < 12) J.claveEscrita += valor;
+  J.claveError = '';
+  dibujarClave();
+}
+function revisarClave() {
+  const p = J.pendiente;
+  if (!J.claveEscrita) { J.claveError = 'Escribe una clave primero.'; dibujarClave(); return; }
+  if (J.claveEscrita !== p.nodo.clave) {
+    J.claveError = 'Clave incorrecta. Busca pistas en el personal.';
+    sonido.error();
+    vibrar(0.6, 150);
+    dibujarClave();
+    return;
+  }
+  J.desbloqueadas.add(p.nodo);
+  pintarPlataformas();
+  cerrarClave();
+  escribir('Acceso concedido a ' + p.nodo.ruta, 'aviso');
+  sonido.exito();
+  p.despues();
+}
+function cerrarClave() {
+  J.pendiente = null;
+  ver($('zona-clave'), false);
+  ver($('zona-bomba'),false);
+}
+
+
+/* ---------- Ejecutar archivos ---------- */
+function abrirArchivo(a) {
+  const ext = extension(a.nombre);
+  const comando = (ext === 'exe' || ext === 'bat') ? './' + a.nombre
+                : ext === 'lck' ? 'lockctl ' + a.nombre
+                : ext === 'cam' ? 'camview ' + a.nombre
+                : 'cat ' + a.nombre;
+  escribir('$ ' + comando, 'cmd');
+  const regla = REGLAS[a.accion];
+  if (regla) regla(a);
+  else mostrar(a.nombre, a.texto || '(archivo vacío)');
+}
+
+// ✏️ Reglas especiales. Agrega una función aquí y úsala con "accion" en el ARBOL.
+const REGLAS = {
+  bomba() {
+    J.codigo = '';
+    dibujarBomba();
+    ver($('visor'), false);
+    ver($('zona-bomba'), true);
+    escribir('Cerradura de cuatro ruedas: introduzca la combinacion.', 'aviso');
+  }
+};
+function dibujarBomba() {
+  const p = pantalla('pan-bomba'), ctx=p.ctx;
+  p.limpiar(); ctx.textBaseline='middle';
+  ctx.font='500 30px '+MONO; ctx.fillStyle=C.ambar;
+  ctx.fillText('BOMBA  /  4 CIFRAS', 22, 36);
+  ctx.font='500 59px '+MONO; ctx.fillStyle=C.texto;
+  ctx.fillText(J.codigo.padEnd(4,'_').split('').join('  '), 24, 113);
+  ctx.font='400 23px '+SANS; ctx.fillStyle=C.tenue;
+  ctx.fillText('Error: -20 segundos | Intentos: '+J.intentos, 22, 167);
+  p.listo();
+}
+function digito(valor) {
+  if (!J.activo) return;
+  sonido.clic(); vibrar();
+  if (valor==='Cerrar') { ver($('zona-bomba'),false); return; }
+  if (valor==='Borrar') J.codigo=J.codigo.slice(0,-1);
+  else if (valor==='Entrar') {
+    if (J.codigo.length!==4) { escribir('Se requieren cuatro cifras.', 'error'); sonido.error(); return; }
+    if (J.codigo==='7429') { terminar(true); return; }
+    J.intentos++;
+    J.restante=Math.max(0,J.restante-20);
+    // La cuenta real usa inicio: trasladamos el origen para conservar la penalización.
+    J.inicio-=20000;
+    J.codigo=''; sonido.error(); vibrar(0.7,200);
+    escribir('Combinacion incorrecta: penalizacion de 20 segundos.', 'error');
+    if (J.restante<=0) terminar(false);
+  } else if (/^[0-9]$/.test(valor) && J.codigo.length<4) J.codigo+=valor;
+  dibujarBomba();
+}
+function pintarPlataformas() {
+  NODOS.forEach(n => n.el.setAttribute('color', '#68533E'));
+}
+
+/* ---------- El reloj (lo llama el componente reloj-juego en cada cuadro) ---------- */
+// Las cuatro campanadas son exclusivamente sonoras. Se repiten cada 45 segundos.
+function campanadas() {
+  const a=ctxAudio(); if(!a) return;
+  for (let i=0;i<4;i++) {
+    const t=a.currentTime+i*0.85;
+    [392,784,1176].forEach((hz,j)=>{
+      const osc=a.createOscillator(),gain=a.createGain();
+      osc.type='sine'; osc.frequency.setValueAtTime(hz,t);
+      gain.gain.setValueAtTime(0.0001,t);
+      gain.gain.exponentialRampToValueAtTime(0.16/(j+1),t+0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+1.65);
+      osc.connect(gain).connect(a.destination); osc.start(t); osc.stop(t+1.7);
+    });
+  }
+}
+const EVENTOS = [
+  { s: 240, texto: 'El mecanismo de relojeria acelera.', vibra: 0.2 },
+  { s: 120, texto: 'Quedan dos minutos. El metal comienza a vibrar.', vibra: 0.4 },
+  { s: 60, texto: 'Ultimo minuto. Resuelva la combinacion.', vibra: 0.5 }
+];
+window.alTick = function () {
+  if (!J.activo) return;
+  J.restante=Math.max(0,DURACION-(performance.now()-J.inicio)/1000);
+  const seg=Math.ceil(J.restante);
+  if (seg!==J.ultimoSeg) { J.ultimoSeg=seg; dibujarEstado(); }
+  const transcurrido=DURACION-J.restante;
+  const secuencias=Math.min(7,Math.floor(transcurrido/45));
+  if(secuencias>J.campanadas) { J.campanadas=secuencias; campanadas(); }
+  EVENTOS.forEach(ev=>{
+    if(J.restante<=ev.s && !J.avisosDados.has(ev)) {
+      J.avisosDados.add(ev); escribir(ev.texto,'aviso'); vibrar(ev.vibra,170);
+    }
+  });
+  if(J.restante<=0) terminar(false);
+};
+
+/* ---------- Principio, fin y volver a empezar ----------
+   💡 En VR no podemos recargar la página (te sacaría del visor), así que
+      reiniciar() regresa cada parte del estado a como estaba al principio. */
+function iniciar() {
+  ctxAudio(); ver($('mensaje'),false); mostrarMaqueta(true);
+  ver($('zona-bomba'),false);
+  J.activo=true; J.inicio=performance.now();
+  escribir('Londres, 1893. Expediente del tratado naval.', 'tenue');
+  escribir('Cerraduras bloqueadas. Dispositivo mecanico activo.', 'error');
+  escribir('Investigue las carpetas. Encuentre cuatro cifras y su orden.', 'aviso');
+  escribir('Busque la cerradura en mecanismo/bomba.exe.', 'tenue');
+}
+function terminar(gano) {
+  if(J.fin)return;
+  J.fin=true; J.activo=false;
+  cerrarClave(); ver($('zona-bomba'),false); ver($('visor'),false);
+  const seg=Math.ceil(J.restante);
+  if(gano) {
+    sonido.exito(); vibrar(0.5,150);
+    mostrarMensaje('BOMBA DESACTIVADA',
+      `Puertas abiertas. Quedan ${seg} segundos.\n\nUna nota: \"Admirable, Holmes. Mientras buscaba cuatro numeros, mi verdadero plan se cumplio. Hasta nuestra proxima partida.\"\n\n— M.`,
+      'Jugar de nuevo',reiniciar);
+  } else {
+    sonido.golpe(); vibrar(1,600);
+    mostrarMensaje('TIEMPO AGOTADO',
+      'El mecanismo llega a cero. Holmes no ha conseguido detener el explosivo. El expediente queda sin resolver.',
+      'Intentar de nuevo',reiniciar);
+  }
+}
+function reiniciar() {
+  Object.assign(J,{activo:false,fin:false,restante:DURACION,inicio:0,codigo:'',intentos:0,campanadas:0,pendiente:null,ultimoSeg:-1,ultimoM:-1});
+  J.desbloqueadas.clear(); J.avisosDados.clear(); lineasConsola=[];
+  dibujarConsola(); pintarPlataformas(); vistaGeneral(); iniciar();
+}
+
+/* ---------- Conectamos todo ---------- */
+escena.addEventListener('sistema-listo', e => {
+  RAIZ = e.detail.raiz;
+  NODOS = e.detail.nodos;
+  pintarPlataformas();
+  vistaGeneral(true);
+  dibujarConsola();
+  dibujarInfo('');
+  ver($('visor'), false);
+  ver($('zona-clave'), false);
+  ver($('zona-bomba'), false);
+  mostrarMensaje('EL EXPEDIENTE PERDIDO',
+    'Londres, 1893. Holmes ha quedado encerrado con una bomba de relojeria. Explore los documentos, descifre cuatro numeros y encuentre el mecanismo antes de seis minutos.',
+    'Iniciar caso', iniciar);
+});
+
+escena.addEventListener('sobre', e => {
+  const { nodo, archivo } = e.detail;
+  if (archivo) dibujarInfo(`${archivo.nombre}   ${archivo.tipo.nombre}`);
+  else if (nodo) {
+    const cuantos = (nodo.hijos || []).length + (nodo.archivos || []).length;
+    dibujarInfo(`${nodo.ruta}/   ${cuantos} elementos${bloqueada(nodo) ? ', protegida' : ''}`);
+  } else dibujarInfo('');
+});
+
+escena.addEventListener('elegir-carpeta', e => {
+  if (!J.activo || J.pendiente) return;
+  sonido.clic(); vibrar();
+  entrarCarpeta(e.detail.nodo);
+});
+
+escena.addEventListener('elegir-archivo', e => {
+  if (!J.activo || J.pendiente) return;
+  const a = e.detail.archivo;
+  sonido.clic(); vibrar();
+  if (bloqueada(a.dir)) { entrarCarpeta(a.dir); return; }
+  entrarCarpeta(a.dir, true);
+  abrirArchivo(a);
+});
+
+// Botones 3D
+$('btn-mensaje').addEventListener('click', () => { if (J.accionMensaje) { sonido.clic(); vibrar(); J.accionMensaje(); } });
+$('btn-subir').addEventListener('click', () => { if (J.activo && !J.pendiente) { sonido.clic(); vibrar(); subir(); } });
+$('btn-general').addEventListener('click', () => {
+  if (!J.activo || J.pendiente) return;
+  sonido.clic(); vibrar();
+  vistaGeneral();
+  escribir('$ cd /' + ARBOL.nombre, 'cmd');
+  listar(RAIZ);
+});
+$('btn-cerrar-visor').addEventListener('click', () => { sonido.clic(); ver($('visor'), false); });
+$('teclado').addEventListener('tecla', e => tecla(e.detail.valor));
+$('numerico').addEventListener('digito',e=>digito(e.detail.valor));
+
+// Portada de HTML: entrar al visor o jugar en la computadora
+function quitarPortada() { $('portada').hidden = true; ctxAudio(); }
+$('btn-pantalla').addEventListener('click', quitarPortada);
+$('btn-vr').addEventListener('click', () => {
+  quitarPortada();
+  const entrar = () => { const r = escena.enterVR(); if (r && r.catch) r.catch(() => { $('portada').hidden = false; $('aviso-vr').textContent = 'No se pudo entrar al modo VR. Intenta de nuevo desde el navegador del Quest.'; }); };
+  if (escena.hasLoaded) entrar(); else escena.addEventListener('loaded', entrar, { once: true });
+});
+// 💡 ¿Este navegador tiene modo VR? navigator.xr existe en el Quest, no en la mayoría de las computadoras
+if (navigator.xr && navigator.xr.isSessionSupported) {
+  navigator.xr.isSessionSupported('immersive-vr').then(si => {
+    if (!si) { $('btn-vr').disabled = true; $('aviso-vr').textContent = 'Este navegador no tiene modo VR. Ábrelo desde el navegador del Quest o juega en la computadora.'; }
+  }).catch(() => {});
+} else {
+  $('btn-vr').disabled = true;
+  $('aviso-vr').textContent = 'Este navegador no tiene modo VR. Ábrelo desde el navegador del Quest o juega en la computadora.';
+}
+
+// Al entrar al visor quitamos el ajuste de la computadora: tu cabeza pone la altura real.
+// Al salir, regresamos el ajuste y mostramos la portada para poder volver a entrar.
+escena.addEventListener('enter-vr', () => { if (escena.is('vr-mode')) $('rig').setAttribute('position', '0 0 0'); ctxAudio(); });
+escena.addEventListener('exit-vr', () => { $('rig').setAttribute('position', '0 0.25 0.6'); $('portada').hidden = false; });
+</script>
+</body>
+</html>
